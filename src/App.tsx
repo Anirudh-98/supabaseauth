@@ -7,7 +7,7 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Home from './pages/Home';
 import Admin from './pages/Admin';
-import ProtectedRoute from './components/auth/ProtectedRoute';
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import LoadingScreen from './components/ui/LoadingScreen';
 import { AuthProvider } from './components/auth/AuthProvider';
 
