@@ -62,6 +62,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         advocate_full_name,
         bar_council_enrollment_number,
         phone_number,
+        role: 'User',
+        account_status: 'Pending',
       });
       
       if (profileError) {
