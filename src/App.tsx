@@ -7,9 +7,7 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Home from './pages/Home';
 import Admin from './pages/Admin';
-import Dashboard from './pages/Dashboard'; // Import Dashboard
-import { ProtectedRoute } from './components/auth/ProtectedRoute';
-import AuthRequiredRoute from './components/auth/AuthRequiredRoute'; // Import AuthRequiredRoute
+import ProtectedRoute from './components/auth/ProtectedRoute';
 import LoadingScreen from './components/ui/LoadingScreen';
 import { AuthProvider } from './components/auth/AuthProvider';
 
@@ -32,13 +30,8 @@ function App() {
           <Route path="login" element={<Login />} />
           <Route path="signup" element={<Signup />} />
           <Route path="home" element={
-            <AuthRequiredRoute> {/* Changed to AuthRequiredRoute */}
-              <Home />
-            </AuthRequiredRoute>
-          } />
-          <Route path="dashboard" element={ /* New Dashboard route */
             <ProtectedRoute>
-              <Dashboard />
+              <Home />
             </ProtectedRoute>
           } />
           <Route path="admin" element={

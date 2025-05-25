@@ -1,7 +1,6 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode } from 'react'; // Added React import
 import { Navigate } from 'react-router-dom';
-import { useAuth } from './AuthProvider';
-import LoadingScreen from '../ui/LoadingScreen'; // Import LoadingScreen
+import { useAuth } from './AuthProvider'; // Adjust the path if needed
 
 interface ProtectedRouteProps {
     children: ReactNode;
@@ -12,7 +11,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requir
     const { session, loading, isApproved, isAdmin, isVerified } = useAuth();
 
     if (loading) {
-        return <LoadingScreen />; // Use LoadingScreen component
+        return <p>Loading...</p>;
     }
 
     if (!session) {
@@ -22,29 +21,17 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requir
 
     if (!isVerified) {
         return (
-            <div className="flex items-center justify-center min-h-screen bg-gray-100">
-                <div className="p-8 bg-white shadow-md rounded-lg text-center max-w-md">
-                    <h2 className="text-2xl font-semibold text-gray-800 mb-4">Email Verification Required</h2>
-                    <p className="text-gray-600">
-                        Please verify your email address to continue. Check your inbox for a verification link.
-                    </p>
-                    {/* Optional: Add a button to resend verification or logout */}
-                </div>
+            <div>
+                <p>Please verify your email to access this page.</p>
             </div>
         );
     }
 
     if (!isApproved) {
+        // Optionally redirect or display a message for pending/declined users
         return (
-            <div className="flex items-center justify-center min-h-screen bg-gray-100">
-                <div className="p-8 bg-white shadow-md rounded-lg text-center max-w-md">
-                    <h2 className="text-2xl font-semibold text-gray-800 mb-4">Account Pending Approval</h2>
-                    <p className="text-gray-600">
-                        Your account is currently awaiting approval from an administrator. 
-                        You will be notified once your account is approved.
-                    </p>
-                     {/* Optional: Add a contact support link */}
-                </div>
+            <div>
+                <p>Your account is pending approval.</p>
             </div>
         );
     }

@@ -2,25 +2,24 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { CheckCircle, XCircle } from 'lucide-react';
 import Button from '../ui/Button';
-import type { Profile, AccountStatus } from '../../lib/types';
+import type { User } from '../../lib/supabase';
 
 const UserList = () => {
-  const [users, setUsers] = useState<Profile[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<AccountStatus | 'All'>('All');
 
   useEffect(() => {
     fetchUsers();
     
     // Set up real-time subscription for user updates
     const subscription = supabase
-      .channel('public:profiles')
+      .channel('public:users')
       .on('postgres_changes', { 
         event: '*', 
         schema: 'public', 
-        table: 'profiles' 
+        table: 'users' 
       }, () => {
         fetchUsers();
       })
@@ -34,7 +33,7 @@ const UserList = () => {
   const fetchUsers = async () => {
     try {
       const { data, error } = await supabase
-        .from('profiles')
+        .from('users')
         .select('*')
         .order('created_at', { ascending: false });
       
@@ -49,14 +48,13 @@ const UserList = () => {
     }
   };
 
-  const handleSetAccountStatus = async (userId: string, status: AccountStatus) => {
+  const handleApproveUser = async (userId: string) => {
     setActionInProgress(userId);
-    setError('');
     
     try {
       const { error } = await supabase
-        .from('profiles')
-        .update({ account_status: status })
+        .from('users')
+        .update({ access_granted: true })
         .eq('id', userId);
       
       if (error) throw error;
@@ -64,12 +62,37 @@ const UserList = () => {
       // Update local state
       setUsers((prevUsers) =>
         prevUsers.map((user) =>
-          user.id === userId ? { ...user, account_status: status } : user
+          user.id === userId ? { ...user, access_granted: true } : user
         )
       );
     } catch (err) {
-      console.error(`Error setting account status to ${status}:`, err);
-      setError(`Failed to set account status to ${status}.`);
+      console.error('Error approving user:', err);
+      setError('Failed to approve user');
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleRevokeAccess = async (userId: string) => {
+    setActionInProgress(userId);
+    
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ access_granted: false })
+        .eq('id', userId);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setUsers((prevUsers) =>
+        prevUsers.map((user) =>
+          user.id === userId ? { ...user, access_granted: false } : user
+        )
+      );
+    } catch (err) {
+      console.error('Error revoking access:', err);
+      setError('Failed to revoke access');
     } finally {
       setActionInProgress(null);
     }
@@ -102,38 +125,11 @@ const UserList = () => {
     );
   }
 
-  const filterOptions: { label: string; value: AccountStatus | 'All' }[] = [
-    { label: 'All Users', value: 'All' },
-    { label: 'Pending', value: 'pending' },
-    { label: 'Approved', value: 'approved' },
-    { label: 'Declined', value: 'declined' },
-  ];
-
-  const filteredUsers = users.filter(user => {
-    if (statusFilter === 'All') {
-      return true;
-    }
-    return user.account_status === statusFilter;
-  });
-
   return (
-    <div>
-      <div className="mb-4 flex space-x-2">
-        {filterOptions.map(option => (
-          <Button
-            key={option.value}
-            variant={statusFilter === option.value ? 'primary' : 'outline'}
-            onClick={() => setStatusFilter(option.value)}
-            size="sm"
-          >
-            {option.label}
-          </Button>
-        ))}
-      </div>
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
+    <div className="overflow-x-auto">
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50">
+          <tr>
             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Name
             </th>
@@ -147,15 +143,6 @@ const UserList = () => {
               Status
             </th>
             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Email Verified
-            </th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Bar Council No.
-            </th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Phone No.
-            </th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Created At
             </th>
             <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -164,18 +151,18 @@ const UserList = () => {
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
-          {filteredUsers.length === 0 ? (
+          {users.length === 0 ? (
             <tr>
-              <td colSpan={9} className="px-6 py-4 text-center text-sm text-gray-500">
-                {statusFilter === 'All' ? 'No users found' : `No users found with status: ${statusFilter}`}
+              <td colSpan={6} className="px-6 py-4 text-center text-sm text-gray-500">
+                No users found
               </td>
             </tr>
           ) : (
-            filteredUsers.map((user) => (
+            users.map((user) => (
               <tr key={user.id}>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-medium text-gray-900">
-                    {user.advocate_full_name || 'N/A'}
+                    {user.full_name || 'N/A'}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -195,93 +182,46 @@ const UserList = () => {
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  {user.account_status === 'approved' && (
-                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 capitalize">
+                  {user.access_granted ? (
+                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
                       <CheckCircle className="h-4 w-4 mr-1" />
-                      {user.account_status}
-                    </span>
-                  )}
-                  {user.account_status === 'pending' && (
-                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800 capitalize">
-                      <XCircle className="h-4 w-4 mr-1" />
-                      {user.account_status}
-                    </span>
-                  )}
-                  {user.account_status === 'declined' && (
-                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800 capitalize">
-                      <XCircle className="h-4 w-4 mr-1" />
-                      {user.account_status}
-                    </span>
-                  )}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {user.email_verified ? (
-                    <span className="inline-flex items-center text-green-700">
-                      <CheckCircle className="h-4 w-4 mr-1" /> Yes
+                      Approved
                     </span>
                   ) : (
-                    <span className="inline-flex items-center text-red-700">
-                      <XCircle className="h-4 w-4 mr-1" /> No
+                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                      <XCircle className="h-4 w-4 mr-1" />
+                      Pending
                     </span>
                   )}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {user.bar_council_enrollment_number || 'N/A'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {user.phone_number || 'N/A'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {new Date(user.created_at).toLocaleDateString()}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   {user.role !== 'admin' && (
-                    <div className="space-x-2">
-                      {user.account_status === 'pending' && (
-                        <>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => handleSetAccountStatus(user.id, 'approved')}
-                            isLoading={actionInProgress === user.id}
-                            disabled={actionInProgress !== null}
-                          >
-                            Approve
-                          </Button>
-                          <Button
-                            variant="danger"
-                            size="sm"
-                            onClick={() => handleSetAccountStatus(user.id, 'declined')}
-                            isLoading={actionInProgress === user.id}
-                            disabled={actionInProgress !== null}
-                          >
-                            Decline
-                          </Button>
-                        </>
-                      )}
-                      {user.account_status === 'approved' && (
+                    <>
+                      {user.access_granted ? (
                         <Button
                           variant="danger"
                           size="sm"
-                          onClick={() => handleSetAccountStatus(user.id, 'declined')}
+                          onClick={() => handleRevokeAccess(user.id)}
                           isLoading={actionInProgress === user.id}
                           disabled={actionInProgress !== null}
                         >
-                          Decline
+                          Revoke Access
                         </Button>
-                      )}
-                      {user.account_status === 'declined' && (
+                      ) : (
                         <Button
                           variant="secondary"
                           size="sm"
-                          onClick={() => handleSetAccountStatus(user.id, 'approved')}
+                          onClick={() => handleApproveUser(user.id)}
                           isLoading={actionInProgress === user.id}
                           disabled={actionInProgress !== null}
                         >
                           Approve
                         </Button>
                       )}
-                    </div>
+                    </>
                   )}
                 </td>
               </tr>
