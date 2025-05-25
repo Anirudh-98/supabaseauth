@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply text-gray-900;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif font-bold;
+  }
+
+  body {
+    @apply font-sans antialiased bg-gray-50;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply px-4 py-2 rounded-md font-medium transition-all duration-200 ease-in-out;
+  }
+  
+  .btn-primary {
+    @apply btn bg-primary-800 text-white hover:bg-primary-700 focus:ring-2 focus:ring-primary-300 focus:outline-none;
+  }
+  
+  .btn-secondary {
+    @apply btn bg-accent-500 text-white hover:bg-accent-600 focus:ring-2 focus:ring-accent-300 focus:outline-none;
+  }
+
+  .btn-outline {
+    @apply btn border-2 border-primary-800 text-primary-800 hover:bg-primary-50 focus:ring-2 focus:ring-primary-300 focus:outline-none;
+  }
+
+  .btn-danger {
+    @apply btn bg-red-500 text-white hover:bg-red-700 focus:ring-2 focus:ring-red-300 focus:outline-none;
+  }
+  
+  .input {
+    @apply px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm 
+    focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500;
+  }
+
+  .card {
+    @apply bg-white rounded-lg shadow-card p-6 transition-all duration-200;
+  }
+
+  .card-hover {
+    @apply hover:shadow-card-hover;
+  }
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-in-out;
+}
