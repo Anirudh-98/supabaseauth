@@ -1,28 +1,31 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { CheckCircle, XCircle } from 'lucide-react';
 import Button from '../ui/Button';
-import type { User } from '../../lib/supabase';
+import UserCard from './UserCard';
+import UserCardSkeleton from './UserCardSkeleton'; // Import UserCardSkeleton
+import type { Profile, AccountStatus } from '../../lib/types';
+import { motion } from 'framer-motion';
+import toast from 'react-hot-toast';
 
 const UserList = () => {
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<Profile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<AccountStatus | 'All'>('All'); // Existing filter state
 
   useEffect(() => {
     fetchUsers();
     
-    // Set up real-time subscription for user updates
     const subscription = supabase
-      .channel('public:users')
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'users' 
-      }, () => {
-        fetchUsers();
-      })
+      .channel('public:profiles') // Subscribe to profiles table
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles' },
+        () => {
+          fetchUsers(); 
+        }
+      )
       .subscribe();
     
     return () => {
@@ -31,91 +34,130 @@ const UserList = () => {
   }, []);
 
   const fetchUsers = async () => {
+    // setIsLoading(true); // Already set initially, and on error retry
     try {
-      const { data, error } = await supabase
-        .from('users')
+      const { data, error: fetchError } = await supabase // Renamed error to fetchError
+        .from('profiles') // Fetch from profiles table
         .select('*')
         .order('created_at', { ascending: false });
       
-      if (error) throw error;
+      if (fetchError) throw fetchError;
       
       setUsers(data || []);
-    } catch (err) {
+    } catch (err: any) { // Typed err
       console.error('Error fetching users:', err);
-      setError('Failed to load users');
+      setError(err.message || 'Failed to load users');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleApproveUser = async (userId: string) => {
+  // Refactored handler from previous tasks
+  const handleSetAccountStatus = async (userId: string, status: AccountStatus) => {
     setActionInProgress(userId);
+    setError('');
     
     try {
-      const { error } = await supabase
-        .from('users')
-        .update({ access_granted: true })
+      const { error: updateError } = await supabase // Renamed error to updateError
+        .from('profiles')
+        .update({ account_status: status })
         .eq('id', userId);
       
-      if (error) throw error;
+      if (updateError) throw updateError;
       
-      // Update local state
+      // Update local state optimistically or re-fetch
+      const userToUpdate = users.find(u => u.id === userId);
+      
+      // Update local state optimistically
       setUsers((prevUsers) =>
         prevUsers.map((user) =>
-          user.id === userId ? { ...user, access_granted: true } : user
+          user.id === userId ? { ...user, account_status: status } : user
         )
       );
-    } catch (err) {
-      console.error('Error approving user:', err);
-      setError('Failed to approve user');
+      
+      if (userToUpdate) {
+        toast.success(`User ${userToUpdate.advocate_full_name || userToUpdate.email} status set to ${status}.`);
+      } else {
+        toast.success(`User status updated to ${status}.`); // Fallback if user not found
+      }
+      // Note: The Edge function 'send-status-email' and in-app notification trigger
+      // are handled by backend triggers.
+    } catch (err: any) {
+      console.error(`Error setting account status to ${status}:`, err);
+      setError(err.message || `Failed to set account status to ${status}.`);
+      toast.error(err.message || 'Failed to update user status.');
     } finally {
       setActionInProgress(null);
+    }
+  };
+  
+  // Existing filter options and logic (from task 01HY3M91S4Q7J4K8X0A4GZ3T7E)
+  const filterOptions: { label: string; value: AccountStatus | 'All' }[] = [
+    { label: 'All Users', value: 'All' },
+    { label: 'Pending', value: 'pending' },
+    { label: 'Approved', value: 'approved' },
+    { label: 'Declined', value: 'declined' },
+  ];
+
+  const filteredUsers = users.filter(user => {
+    if (statusFilter === 'All') {
+      return true;
+    }
+    return user.account_status === statusFilter;
+  });
+
+  // Framer Motion variants (from task 01HY3MFM1X6A2M8Y4X8KJZS8S7)
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: { staggerChildren: 0.07 }
     }
   };
 
-  const handleRevokeAccess = async (userId: string) => {
-    setActionInProgress(userId);
-    
-    try {
-      const { error } = await supabase
-        .from('users')
-        .update({ access_granted: false })
-        .eq('id', userId);
-      
-      if (error) throw error;
-      
-      // Update local state
-      setUsers((prevUsers) =>
-        prevUsers.map((user) =>
-          user.id === userId ? { ...user, access_granted: false } : user
-        )
-      );
-    } catch (err) {
-      console.error('Error revoking access:', err);
-      setError('Failed to revoke access');
-    } finally {
-      setActionInProgress(null);
-    }
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.4 } }
   };
+
 
   if (isLoading) {
     return (
-      <div className="text-center py-6">
-        <p>Loading users...</p>
+      <div>
+        {/* Filter UI should ideally be visible even during loading, or hidden if preferred */}
+        <div className="mb-6 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+          {filterOptions.map(option => (
+            <Button
+              key={option.value}
+              variant={statusFilter === option.value ? 'primary' : 'outline'}
+              onClick={() => setStatusFilter(option.value)}
+              size="sm"
+              disabled // Disable filter buttons during initial load
+            >
+              {option.label}
+            </Button>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+          {[...Array(3)].map((_, index) => (
+            <UserCardSkeleton key={index} />
+          ))}
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="p-4 bg-error-50 text-error-700 rounded-md">
-        <p>{error}</p>
+      <div className="p-6 bg-red-50 text-red-700 rounded-md shadow text-center">
+        <p className="font-semibold">Error loading users:</p>
+        <p className="mb-4">{error}</p>
         <Button 
           variant="primary" 
           size="sm" 
-          className="mt-2" 
           onClick={() => {
             setError('');
+            setIsLoading(true); 
             fetchUsers();
           }}
         >
@@ -126,109 +168,47 @@ const UserList = () => {
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Name
-            </th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Email
-            </th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Role
-            </th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Status
-            </th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Created At
-            </th>
-            <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Actions
-            </th>
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
-          {users.length === 0 ? (
-            <tr>
-              <td colSpan={6} className="px-6 py-4 text-center text-sm text-gray-500">
-                No users found
-              </td>
-            </tr>
-          ) : (
-            users.map((user) => (
-              <tr key={user.id}>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-medium text-gray-900">
-                    {user.full_name || 'N/A'}
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-900">{user.email}</div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-900">
-                    {user.role === 'admin' ? (
-                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
-                        Admin
-                      </span>
-                    ) : (
-                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                        User
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  {user.access_granted ? (
-                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                      <CheckCircle className="h-4 w-4 mr-1" />
-                      Approved
-                    </span>
-                  ) : (
-                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                      <XCircle className="h-4 w-4 mr-1" />
-                      Pending
-                    </span>
-                  )}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {new Date(user.created_at).toLocaleDateString()}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  {user.role !== 'admin' && (
-                    <>
-                      {user.access_granted ? (
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          onClick={() => handleRevokeAccess(user.id)}
-                          isLoading={actionInProgress === user.id}
-                          disabled={actionInProgress !== null}
-                        >
-                          Revoke Access
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => handleApproveUser(user.id)}
-                          isLoading={actionInProgress === user.id}
-                          disabled={actionInProgress !== null}
-                        >
-                          Approve
-                        </Button>
-                      )}
-                    </>
-                  )}
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+    <div>
+      {/* Filter UI */}
+      <div className="mb-6 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+        {filterOptions.map(option => (
+          <Button
+            key={option.value}
+            variant={statusFilter === option.value ? 'primary' : 'outline'}
+            onClick={() => setStatusFilter(option.value)}
+            size="sm"
+          >
+            {option.label}
+          </Button>
+        ))}
+      </div>
+
+      {/* User Cards Grid */}
+      {filteredUsers.length === 0 ? (
+        <div className="text-center py-10">
+          <p className="text-gray-500">
+            {statusFilter === 'All' ? 'No users found.' : `No users found with status: ${statusFilter}.`}
+          </p>
+        </div>
+      ) : (
+        <motion.div 
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          {filteredUsers.map((user) => (
+            <motion.div key={user.id} variants={itemVariants}>
+              <UserCard
+                key={user.id} // key on UserCard itself is also fine
+                user={user}
+                onSetAccountStatus={handleSetAccountStatus}
+                actionInProgress={actionInProgress}
+              />
+            </motion.div>
+          ))}
+        </motion.div>
+      )}
     </div>
   );
 };

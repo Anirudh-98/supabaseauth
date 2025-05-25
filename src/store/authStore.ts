@@ -1,8 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import type { Profile, AccountStatus } from '../lib/types';
-
-type AuthState = {
+import toast from 'react-hot-toast'; // Import toast
   user: Profile | null;
   session: any | null;
   isLoading: boolean;
@@ -41,37 +40,58 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     
     if (!error && data.user) {
       await get().refreshUserData();
+      toast.success('Login successful!');
+    } else if (error) {
+      toast.error(error.message || 'Login failed.');
     }
-    
     return { error };
   },
   
   signup: async ({ email, password, advocate_full_name, bar_council_enrollment_number, phone_number }) => {
-    const { error, data } = await supabase.auth.signUp({
+    let signupError, profileErrorData; // To hold errors for later toast
+    try {
+      const { error, data } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-    
-    if (!error && data.user) {
-      const { error: profileError } = await supabase.from('profiles').insert({
-        id: data.user.id,
-        email,
-        advocate_full_name,
-        bar_council_enrollment_number,
-        phone_number,
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
       });
-      
-      if (profileError) {
-        return { error: profileError };
+
+      signupError = error; // Store potential signup error
+
+      if (!error && data.user) {
+        // These fields should already be in the 'profiles' table definition
+        // from previous tasks, including default values for role and account_status.
+        const { error: profileError } = await supabase.from('profiles').insert({
+          id: data.user.id,
+          email,
+          advocate_full_name,
+          bar_council_enrollment_number,
+          phone_number,
+          // role: 'User', // This should be a default in the DB or set here if not
+          // account_status: 'Pending', // This should be a default in the DB or set here if not
+        });
+
+        profileErrorData = profileError; // Store potential profile error
+
+        if (profileError) {
+          toast.error(profileError.message || 'Failed to create user profile.');
+          return { error: profileError };
+        }
+        
+        toast.success('Signup successful! Please check your email to verify.');
+        return { error: null }; // Explicitly return null error on success
+      } else if (error) {
+        toast.error(error.message || 'Signup failed.');
+        return { error };
       }
-      
-      await get().refreshUserData();
+    } catch (err: any) {
+      toast.error(err.message || 'An unexpected error occurred during signup.');
+      return { error: err };
     }
-    
-    return { error };
+    // Fallback, should be covered by specific error returns above
+    return { error: signupError || profileErrorData || new Error('Signup process failed.') };
   },
   
   logout: async () => {
@@ -83,6 +103,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isVerified: false,
       isApproved: false,
     });
+    toast.success('Logged out successfully.');
   },
   
   checkSession: async () => {

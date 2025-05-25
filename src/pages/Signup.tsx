@@ -1,11 +1,10 @@
-import { useState } from 'react';
+import React, { useState } from 'react'; // Ensure React is imported
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { Scale } from 'lucide-react';
-
-const Signup = () => {
+import AnimatedPage from '../components/animation/AnimatedPage';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -47,30 +46,30 @@ const Signup = () => {
   };
 
   return (
-    <div className="flex justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <AnimatedPage className="flex justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="w-full max-w-md">
         <div className="text-center">
-          <Scale className="mx-auto h-12 w-12 text-primary-800" />
-          <h2 className="mt-6 text-3xl font-serif font-bold text-primary-800">
+          <Scale className="mx-auto h-12 w-12 text-teal-600" /> {/* Updated color */}
+          <h2 className="mt-6 text-3xl font-serif font-bold text-teal-700"> {/* Updated color */}
             Create a new account
           </h2>
           <p className="mt-2 text-sm text-gray-600">
             Or{' '}
-            <Link to="/login" className="font-medium text-accent-500 hover:text-accent-600">
+            <Link to="/login" className="font-medium text-teal-600 hover:text-teal-700"> {/* Updated color */}
               sign in to your existing account
             </Link>
           </p>
         </div>
 
-        <div className="mt-8 card">
+        <div className="mt-8 bg-white p-6 rounded-lg shadow-md"> {/* Replaced card with explicit styling */}
           {error && (
-            <div className="mb-4 p-3 bg-error-50 text-error-700 rounded-md">
+            <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-md"> {/* Updated status color */}
               {error}
             </div>
           )}
           
           {success && (
-            <div className="mb-4 p-3 bg-success-50 text-success-700 rounded-md">
+            <div className="mb-4 p-3 bg-green-50 text-green-700 rounded-md"> {/* Updated status color */}
               Account created successfully! Redirecting to dashboard...
             </div>
           )}
